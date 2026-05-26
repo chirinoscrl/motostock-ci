@@ -1,0 +1,38 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: motostock-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - motostock-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: motostock-backend
+    restart: unless-stopped
+    environment:
+      MONGO_URI: mongodb://mongo:27017/motostock
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - motostock-net
+
+networks:
+  motostock-net:
+    driver: bridge
+
+volumes:
+  mongo-data:
