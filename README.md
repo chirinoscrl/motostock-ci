@@ -1,8 +1,5 @@
 # MotoStock CI
 
-<!-- Reemplaza OWNER/REPO con tu usuario y nombre de repositorio una vez creado en GitHub -->
-![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)
-
 Sistema básico de inventario de repuestos de motos con integración continua.
 
 Proyecto académico enfocado en demostrar prácticas de control de versiones,
@@ -18,7 +15,7 @@ contenerización, pruebas automatizadas y pipelines de CI con GitHub Actions.
 
 ## Estructura
 
-```
+```text
 motostock-ci/
 ├── backend/        API REST en NestJS
 ├── frontend/       SPA en React + Vite
@@ -140,4 +137,3 @@ El campo `status` se calcula server-side a partir de `stock`:
 ✅ **Fase 1** — MVP funcional, Docker, CI básico (en curso)
 ⬜ **Fase 2** — CRUD completo + tests robustos
 ⬜ **Fase 3** — Frontend completo y dockerizado
-⬜ **Fase 4** — Endurecimiento y documentación final
