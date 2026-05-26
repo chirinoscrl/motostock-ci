@@ -1,7 +1,7 @@
 export type SparePartStatus = 'disponible' | 'bajo_stock' | 'agotado';
 
 export interface SparePart {
-  id: string;
+  _id: string;
   name: string;
   brand: string;
   category: string;
