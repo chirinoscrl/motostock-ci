@@ -25,7 +25,7 @@ export function SparePartList({ items }: Props) {
       </thead>
       <tbody>
         {items.map((part) => (
-          <tr key={part._id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+          <tr key={part.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
             <td style={{ padding: '0.5rem' }}>{part.name}</td>
             <td style={{ padding: '0.5rem' }}>{part.brand}</td>
             <td style={{ padding: '0.5rem' }}>{part.category}</td>

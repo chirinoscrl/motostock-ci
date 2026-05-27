@@ -46,7 +46,10 @@ describe('SparePartsController (integration)', () => {
       stock: 8,
       status: 'disponible',
     });
-    expect(res.body._id).toBeDefined();
+    expect(res.body.id).toBeDefined();
+    expect(typeof res.body.id).toBe('string');
+    expect(res.body._id).toBeUndefined();
+    expect(res.body.__v).toBeUndefined();
   });
 
   it('POST /spare-parts assigns "bajo_stock" when stock is between 1 and 5', async () => {
