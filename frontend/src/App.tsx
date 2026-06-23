@@ -3,23 +3,38 @@ import { sparePartsApi } from './services/sparePartsApi';
 import type { SparePart } from './types/sparePart';
 import { SparePartForm } from './components/SparePartForm';
 import { SparePartList } from './components/SparePartList';
+import { FilterBar, type Filters } from './components/FilterBar';
+import { DashboardStats } from './components/DashboardStats';
+
+const EMPTY_FILTERS: Filters = { status: '', search: '' };
 
 export function App() {
   const [parts, setParts] = useState<SparePart[]>([]);
+  const [allParts, setAllParts] = useState<SparePart[]>([]);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [editing, setEditing] = useState<SparePart | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiStatus, setApiStatus] = useState<'ok' | 'down' | 'unknown'>('unknown');
   const [error, setError] = useState<string | null>(null);
 
-  const loadParts = useCallback(async () => {
+  const loadFiltered = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const items = await sparePartsApi.list();
+      const items = await sparePartsApi.list(filters);
       setParts(items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setLoading(false);
+    }
+  }, [filters]);
+
+  const loadStats = useCallback(async () => {
+    try {
+      setAllParts(await sparePartsApi.list());
+    } catch {
+      /* la tabla ya muestra el error; las tarjetas quedan con el último valor */
     }
   }, []);
 
@@ -28,8 +43,31 @@ export function App() {
       .health()
       .then(() => setApiStatus('ok'))
       .catch(() => setApiStatus('down'));
-    loadParts();
-  }, [loadParts]);
+    loadStats();
+  }, [loadStats]);
+
+  useEffect(() => {
+    loadFiltered();
+  }, [loadFiltered]);
+
+  const refresh = useCallback(() => {
+    setEditing(null);
+    loadFiltered();
+    loadStats();
+  }, [loadFiltered, loadStats]);
+
+  const handleDelete = useCallback(
+    async (part: SparePart) => {
+      if (!window.confirm(`¿Eliminar "${part.name}"?`)) return;
+      try {
+        await sparePartsApi.remove(part.id);
+        refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error desconocido');
+      }
+    },
+    [refresh],
+  );
 
   return (
     <main
@@ -59,13 +97,27 @@ export function App() {
         </span>
       </header>
 
-      <SparePartForm onCreated={loadParts} />
+      <DashboardStats items={allParts} />
+
+      <SparePartForm
+        editing={editing}
+        onSaved={refresh}
+        onCancelEdit={() => setEditing(null)}
+      />
 
       <h2 style={{ margin: '0 0 0.75rem' }}>Repuestos registrados</h2>
 
+      <FilterBar filters={filters} onChange={setFilters} />
+
       {loading && <p>Cargando...</p>}
       {error && <p style={{ color: '#dc2626' }}>{error}</p>}
-      {!loading && !error && <SparePartList items={parts} />}
+      {!loading && !error && (
+        <SparePartList
+          items={parts}
+          onEdit={setEditing}
+          onDelete={handleDelete}
+        />
+      )}
     </main>
   );
 }

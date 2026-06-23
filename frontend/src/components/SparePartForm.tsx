@@ -1,5 +1,9 @@
-import { useState, type FormEvent } from 'react';
-import { sparePartsApi, type CreateSparePartInput } from '../services/sparePartsApi';
+import { useEffect, useState, type FormEvent } from 'react';
+import {
+  sparePartsApi,
+  type CreateSparePartInput,
+} from '../services/sparePartsApi';
+import type { SparePart } from '../types/sparePart';
 
 const CATEGORIES = [
   'Motor',
@@ -21,14 +25,34 @@ const EMPTY: CreateSparePartInput = {
   stock: 0,
 };
 
-interface Props {
-  onCreated: () => void;
+function toFormValues(part: SparePart): CreateSparePartInput {
+  return {
+    name: part.name,
+    brand: part.brand,
+    category: part.category,
+    reference: part.reference,
+    price: part.price,
+    stock: part.stock,
+  };
 }
 
-export function SparePartForm({ onCreated }: Props) {
+interface Props {
+  editing?: SparePart | null;
+  onSaved: () => void;
+  onCancelEdit?: () => void;
+}
+
+export function SparePartForm({ editing, onSaved, onCancelEdit }: Props) {
   const [form, setForm] = useState<CreateSparePartInput>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isEdit = Boolean(editing);
+
+  useEffect(() => {
+    setForm(editing ? toFormValues(editing) : EMPTY);
+    setError(null);
+  }, [editing]);
 
   const update = <K extends keyof CreateSparePartInput>(
     key: K,
@@ -40,9 +64,13 @@ export function SparePartForm({ onCreated }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      await sparePartsApi.create(form);
+      if (editing) {
+        await sparePartsApi.update(editing.id, form);
+      } else {
+        await sparePartsApi.create(form);
+      }
       setForm(EMPTY);
-      onCreated();
+      onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -64,11 +92,15 @@ export function SparePartForm({ onCreated }: Props) {
         gridTemplateColumns: 'repeat(2, 1fr)',
         gap: '0.75rem',
         padding: '1rem',
-        border: '1px solid #ddd',
+        border: `1px solid ${isEdit ? '#2563eb' : '#ddd'}`,
         borderRadius: '8px',
         marginBottom: '1.5rem',
       }}
     >
+      <h3 style={{ gridColumn: '1 / -1', margin: 0 }}>
+        {isEdit ? `Editar: ${editing?.name}` : 'Nuevo repuesto'}
+      </h3>
+
       <label style={field}>
         Nombre
         <input
@@ -132,21 +164,44 @@ export function SparePartForm({ onCreated }: Props) {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        style={{
-          gridColumn: '1 / -1',
-          padding: '0.6rem',
-          background: '#2563eb',
-          color: 'white',
-          border: 'none',
-          borderRadius: '6px',
-          cursor: submitting ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {submitting ? 'Guardando...' : 'Crear repuesto'}
-      </button>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem' }}>
+        <button
+          type="submit"
+          disabled={submitting}
+          style={{
+            flex: 1,
+            padding: '0.6rem',
+            background: '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: submitting ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {submitting
+            ? 'Guardando...'
+            : isEdit
+              ? 'Actualizar repuesto'
+              : 'Crear repuesto'}
+        </button>
+        {isEdit && onCancelEdit && (
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            disabled={submitting}
+            style={{
+              padding: '0.6rem 1rem',
+              background: 'white',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            Cancelar
+          </button>
+        )}
+      </div>
     </form>
   );
 }

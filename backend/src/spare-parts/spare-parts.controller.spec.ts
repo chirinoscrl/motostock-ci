@@ -94,4 +94,117 @@ describe('SparePartsController (integration)', () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThanOrEqual(3);
   });
+
+  it('GET /spare-parts?status=agotado filters by status', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/spare-parts?status=agotado')
+      .expect(200);
+
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.every((p: { status: string }) => p.status === 'agotado')).toBe(
+      true,
+    );
+  });
+
+  it('GET /spare-parts?search= matches name, brand or category (case-insensitive)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/spare-parts?search=yamaha')
+      .expect(200);
+
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(
+      res.body.every((p: { brand: string }) => p.brand === 'Yamaha'),
+    ).toBe(true);
+  });
+
+  it('GET /spare-parts?status=invalido rejects unknown status', async () => {
+    await request(app.getHttpServer())
+      .get('/spare-parts?status=invalido')
+      .expect(400);
+  });
+
+  it('GET /spare-parts/:id returns a single part', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/spare-parts')
+      .send({ ...validPayload, reference: 'FR-3001' })
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/spare-parts/${created.body.id}`)
+      .expect(200);
+
+    expect(res.body.id).toBe(created.body.id);
+    expect(res.body.reference).toBe('FR-3001');
+  });
+
+  it('GET /spare-parts/:id returns 404 for a missing part', async () => {
+    await request(app.getHttpServer())
+      .get('/spare-parts/64b0c0c0c0c0c0c0c0c0c0c0')
+      .expect(404);
+  });
+
+  it('GET /spare-parts/:id returns 404 for an invalid id', async () => {
+    await request(app.getHttpServer())
+      .get('/spare-parts/not-an-id')
+      .expect(404);
+  });
+
+  it('PATCH /spare-parts/:id recalculates status when stock changes', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/spare-parts')
+      .send({ ...validPayload, reference: 'FR-3002', stock: 20 })
+      .expect(201);
+    expect(created.body.status).toBe('disponible');
+
+    const res = await request(app.getHttpServer())
+      .patch(`/spare-parts/${created.body.id}`)
+      .send({ stock: 0 })
+      .expect(200);
+
+    expect(res.body.stock).toBe(0);
+    expect(res.body.status).toBe('agotado');
+  });
+
+  it('PATCH /spare-parts/:id updates a field without touching status', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/spare-parts')
+      .send({ ...validPayload, reference: 'FR-3003', stock: 10 })
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .patch(`/spare-parts/${created.body.id}`)
+      .send({ price: 99000 })
+      .expect(200);
+
+    expect(res.body.price).toBe(99000);
+    expect(res.body.status).toBe('disponible');
+  });
+
+  it('PATCH /spare-parts/:id returns 404 for a missing part', async () => {
+    await request(app.getHttpServer())
+      .patch('/spare-parts/64b0c0c0c0c0c0c0c0c0c0c0')
+      .send({ price: 1 })
+      .expect(404);
+  });
+
+  it('DELETE /spare-parts/:id removes a part and returns 204', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/spare-parts')
+      .send({ ...validPayload, reference: 'FR-3004' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .delete(`/spare-parts/${created.body.id}`)
+      .expect(204);
+
+    await request(app.getHttpServer())
+      .get(`/spare-parts/${created.body.id}`)
+      .expect(404);
+  });
+
+  it('DELETE /spare-parts/:id returns 404 for a missing part', async () => {
+    await request(app.getHttpServer())
+      .delete('/spare-parts/64b0c0c0c0c0c0c0c0c0c0c0')
+      .expect(404);
+  });
 });

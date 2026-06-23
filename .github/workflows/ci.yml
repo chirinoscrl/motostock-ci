@@ -45,24 +45,41 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Build backend image
-        run: docker compose build backend
+      - name: Build images (full stack)
+        run: docker compose build
 
       - name: Start services
         run: docker compose up -d
 
-      - name: Health check
+      - name: Smoke test backend (/health)
         run: |
           for i in {1..10}; do
             if curl -sf http://localhost:3000/health; then
-              echo "Service is healthy"
+              echo "Backend is healthy"
               exit 0
             fi
-            echo "Waiting for service... ($i/10)"
+            echo "Waiting for backend... ($i/10)"
             sleep 3
           done
-          echo "Service failed to become healthy"
+          echo "Backend failed to become healthy"
           exit 1
+
+      - name: Smoke test frontend (/)
+        run: |
+          for i in {1..10}; do
+            if curl -sf -o /dev/null http://localhost:8080/; then
+              echo "Frontend is serving"
+              exit 0
+            fi
+            echo "Waiting for frontend... ($i/10)"
+            sleep 3
+          done
+          echo "Frontend failed to serve"
+          exit 1
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose logs
 
       - name: Tear down
         if: always()
