@@ -1,0 +1,165 @@
+# Taskfile centralizado de MotoStock CI
+# Requiere "Task": https://taskfile.dev  (macOS: brew install go-task)
+# Uso: `task` (lista las tareas) o `task <nombre>` (p. ej. `task up`).
+version: '3'
+
+vars:
+  COMPOSE: docker compose
+  BACKEND_URL: http://localhost:3000
+  FRONTEND_URL: http://localhost:8080
+
+tasks:
+  default:
+    desc: Lista todas las tareas disponibles
+    cmds:
+      - task --list
+    silent: true
+
+  # ---------------------------------------------------------------- Contenedores
+  build:
+    desc: Construye las imágenes del stack completo (frontend + backend)
+    cmds:
+      - "{{.COMPOSE}} build"
+
+  up:
+    desc: Levanta todo el proyecto en contenedores (construye si hace falta)
+    cmds:
+      - "{{.COMPOSE}} up -d --build"
+      - 'echo "Frontend: {{.FRONTEND_URL}}  |  Backend: {{.BACKEND_URL}}"'
+
+  down:
+    desc: Apaga el stack y elimina volúmenes
+    cmds:
+      - "{{.COMPOSE}} down -v"
+
+  restart:
+    desc: Reinicia el stack desde cero
+    cmds:
+      - task: down
+      - task: up
+
+  ps:
+    desc: Muestra el estado de los contenedores
+    cmds:
+      - "{{.COMPOSE}} ps"
+
+  logs:
+    desc: Sigue los logs de todos los servicios (Ctrl+C para salir)
+    cmds:
+      - "{{.COMPOSE}} logs -f"
+
+  # ----------------------------------------------------------------- Smoke tests
+  smoke:
+    desc: Verifica que backend (/health) y frontend (/) respondan en contenedores
+    cmds:
+      - |
+        echo "→ Backend /health"
+        for i in $(seq 1 10); do
+          if curl -sf {{.BACKEND_URL}}/health; then echo " ✅"; break; fi
+          echo "  esperando backend... ($i/10)"; sleep 3
+        done
+      - |
+        echo "→ Frontend /"
+        for i in $(seq 1 10); do
+          if curl -sf -o /dev/null {{.FRONTEND_URL}}/; then echo "  HTTP 200 ✅"; break; fi
+          echo "  esperando frontend... ($i/10)"; sleep 3
+        done
+
+  e2e:
+    desc: Flujo end-to-end por la API (crear → leer → filtrar → editar → borrar)
+    cmds:
+      - |
+        set -e
+        echo "→ Crear repuesto (stock=3 → bajo_stock)"
+        ID=$(curl -sf -X POST {{.BACKEND_URL}}/spare-parts \
+          -H 'Content-Type: application/json' \
+          -d '{"name":"Bujía NGK","brand":"NGK","category":"Motor","reference":"BJ-E2E","price":12000,"stock":3}' \
+          | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])")
+        echo "  id=$ID"
+        echo "→ GET /:id";            curl -sf {{.BACKEND_URL}}/spare-parts/$ID > /dev/null && echo "  ✅"
+        echo "→ Filtro ?status";      curl -sf "{{.BACKEND_URL}}/spare-parts?status=bajo_stock" > /dev/null && echo "  ✅"
+        echo "→ PATCH stock=0";       curl -sf -X PATCH {{.BACKEND_URL}}/spare-parts/$ID -H 'Content-Type: application/json' -d '{"stock":0}' | python3 -c "import sys,json;print('  status =',json.load(sys.stdin)['status'])"
+        echo "→ DELETE";              curl -sf -o /dev/null -X DELETE {{.BACKEND_URL}}/spare-parts/$ID && echo "  204 ✅"
+        echo "→ GET tras borrar";     test "$(curl -s -o /dev/null -w '%{http_code}' {{.BACKEND_URL}}/spare-parts/$ID)" = "404" && echo "  404 ✅"
+
+  # --------------------------------------------------------------------- Backend
+  backend:install:
+    desc: Instala dependencias del backend
+    dir: backend
+    cmds:
+      - npm ci
+
+  backend:lint:
+    desc: Lint del backend (ESLint)
+    dir: backend
+    cmds:
+      - npm run lint
+
+  backend:test:
+    desc: Pruebas del backend (Jest + Supertest + mongodb-memory-server)
+    dir: backend
+    cmds:
+      - npm test
+
+  backend:dev:
+    desc: Backend en modo watch (necesita MongoDB local o `task up`)
+    dir: backend
+    cmds:
+      - npm run start:dev
+
+  # -------------------------------------------------------------------- Frontend
+  frontend:install:
+    desc: Instala dependencias del frontend
+    dir: frontend
+    cmds:
+      - npm ci
+
+  frontend:lint:
+    desc: Lint del frontend (ESLint)
+    dir: frontend
+    cmds:
+      - npm run lint
+
+  frontend:build:
+    desc: Compila el frontend (TypeScript + Vite)
+    dir: frontend
+    cmds:
+      - npm run build
+
+  frontend:dev:
+    desc: Frontend en modo desarrollo (Vite)
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  # -------------------------------------------------------------- Pipeline local
+  install:
+    desc: Instala dependencias de backend y frontend
+    cmds:
+      - task: backend:install
+      - task: frontend:install
+
+  lint:
+    desc: Lint de backend y frontend
+    cmds:
+      - task: backend:lint
+      - task: frontend:lint
+
+  test:
+    desc: Ejecuta las pruebas del backend
+    cmds:
+      - task: backend:test
+
+  ci:
+    desc: Reproduce el pipeline de CI en local (lint + test + build + stack + smoke)
+    cmds:
+      - task: backend:install
+      - task: backend:lint
+      - task: backend:test
+      - task: frontend:install
+      - task: frontend:lint
+      - task: frontend:build
+      - task: build
+      - task: up
+      - task: smoke
+      - task: down

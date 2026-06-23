@@ -30,6 +30,22 @@ services:
     networks:
       - motostock-net
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # The browser runs on the host, so it reaches the backend via localhost.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    container_name: motostock-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - motostock-net
+
 networks:
   motostock-net:
     driver: bridge
